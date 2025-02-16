@@ -100,7 +100,7 @@ if __name__ == "__main__":
     time.sleep(random_wait)
 
     # Optionally, crawl additional pages
-    with open('/data/__lastnamecrawler.tmp.json', 'a') as temporary:
+    with open('./data/__lastnamecrawler.tmp.json', 'a') as temporary:
         for page in range((first_page_number+1), total_pages + 1):
             page_url = build_page_url(args.url, page)
             print(f"Crawling page {page}: {page_url}")
