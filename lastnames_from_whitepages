@@ -1,0 +1,115 @@
+#!/bin/python
+
+###############################################################################
+#
+# script_name: lastnames_from_whitepages
+# author: Rick Pfahl
+# description:
+#   dobtains a list of popular last names in a city
+#   for a given letter using whitepages.com as a data source
+#
+###############################################################################
+
+import argparse
+import requests
+import time
+import sys
+import random   
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlencode, urlparse, parse_qs
+
+def fetch_last_names_and_pages(base_url, headers, debug_content):
+    try:
+        # Request the main page
+        if debug_content is None:
+          response = requests.get(base_url, headers=headers)
+          response.raise_for_status()
+          soup = BeautifulSoup(response.text, "html.parser")
+       
+        else: 
+          soup = BeautifulSoup(debug_content, "html_parser")
+        
+        # Extract last names from anchor tags with data-qa-selector "popular-last-name-link"
+        last_name_links = soup.find_all('a', attrs={'data-qa-selector': 'popular-last-name-link'})
+        last_names = [link.text.strip() for link in last_name_links]
+        
+        # Extract pagination links to determine the highest page number
+        page_links = soup.find_all("a", attrs={'data-qa-selector': 'pagination-names-link'})
+
+        if page_links:
+          highest_page = max(
+            int(link.text.strip())
+            for link in page_links
+            if link.text.strip().isdigit()
+            )
+        else:
+            highest_page = 1
+        
+        print(f"Found {len(last_names)} last names on {base_url}")
+        print(f"Total number of pages: {highest_page}")
+        return [last_names, highest_page]
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching the webpage: {e}")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+def build_page_url(base_url, page_number):
+    """Helper function to construct a URL for a specific page."""
+    parsed_url = urlparse(base_url)
+    query_params = parse_qs(parsed_url.query)
+    query_params["page"] = page_number
+    updated_query = urlencode(query_params, doseq=True)
+    return urljoin(base_url, f"{parsed_url.path}?{updated_query}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Scrape last names and pagination info from a webpage.")
+    parser.add_argument("url", metavar="URL", type=str, help="URL of the page to scrape.")
+    parser.add_argument("headers", metavar="HEADERS", type=str, help="Path to a file containing a json object with the headers to use")
+    parser.add_argument("output", metavar="OUTPUT", type=str, help="File to store the collected data", default="./data/whitepages_lastnames.json")
+    parser.add_argument('--sample', type=str, help='Sample html content for debugging the script without hitting whitepages.com', default='')
+    parser.add_argument('--start', type=str, help='Start Page', default='1')
+
+    # Add future options here
+    args = parser.parse_args()
+    
+    with open(args.headers, "r") as file:
+      data = json.load(file)
+    headers = {}
+   
+    for item in data:
+        headers[item['name']] = item['value']
+
+    debug_content = None
+    if args.sample != '':
+        with open(args.sample, "r") as file:
+            sample_content = file.read()
+
+    # Fetch names and total pages
+    first_page_number = int(args.start)
+
+    start_url = build_page_url(args.url, args.start)
+
+    last_names, total_pages = fetch_last_names_and_pages(start_url, headers, debug_content)
+
+    if args.sample != '':   
+      exit(0)
+
+    # don't look like a bot  
+    random_wait = random.randint(2, 5)
+    time.sleep(random_wait)
+
+    # Optionally, crawl additional pages
+    with open('/data/__lastnamecrawler.tmp.json', 'a') as temporary:
+        for page in range((first_page_number+1), total_pages + 1):
+            page_url = build_page_url(args.url, page)
+            print(f"Crawling page {page}: {page_url}")
+            names, _ = fetch_last_names_and_pages(page_url, headers, debug_content)
+            json.dump(names,temporary)
+            last_names.extend(names)
+            random_wait = random.randint(1, 6)
+            time.sleep(random_wait)
+    with open(args.output, 'a') as output:
+      json.dump(last_names,output)
+    print(f"Total last names collected: {len(last_names)}")
+

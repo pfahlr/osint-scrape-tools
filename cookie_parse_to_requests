@@ -1,0 +1,39 @@
+#!/bin/python
+
+import argparse
+import json
+
+def filter_cookies(infile, domain):
+    try:
+        # Load the JSON array from the input file
+        with open(infile, 'r') as f:
+            cookies = json.load(f)
+
+        # Filter cookies for the specified domain
+        filtered_cookies = {
+            cookie["name"]: cookie["value"]
+            for cookie in cookies
+            if "domain" in cookie and cookie["domain"] == domain
+        }
+
+        # Output the filtered cookies as a JSON object
+        print(json.dumps(filtered_cookies, indent=4))
+
+    except FileNotFoundError:
+        print(f"Error: The file '{infile}' was not found.")
+    except json.JSONDecodeError:
+        print(f"Error: Failed to decode JSON from the file '{infile}'.")
+    except KeyError as e:
+        print(f"Error: Missing expected key in JSON data: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred: {e}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Filter and reformat cookies from a JSON file.")
+    parser.add_argument("-f", "--infile", required=True, help="Path to the JSON file containing exported cookies.")
+    parser.add_argument("-d", "--domain", required=True, help="Domain to filter cookies by.")
+
+    args = parser.parse_args()
+
+    # Call the filter_cookies function with the provided arguments
+    filter_cookies(args.infile, args.domain)
